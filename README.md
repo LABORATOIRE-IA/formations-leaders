@@ -1,114 +1,51 @@
-# Formation Offre Lab — Inscriptions (15 & 16 octobre)
+# Inscription Vibecode
 
-Plateforme d'inscription partagée aux créneaux de formation à l'offre du Lab
-(Agentic Livepoint). Tout le monde peut s'inscrire en même temps depuis
-n'importe quel appareil ; chaque créneau se bloque automatiquement à 20
-places, contrôlé côté serveur.
+Page d'inscription moderne (Next.js) avec espace administrateur et limite stricte du nombre d'inscrits. **Aucune base de données** : les inscriptions sont de petits fichiers JSON stockés dans Vercel Blob.
 
-## Fonctionnement
+## Fonctionnalités
 
-- **Frontend** statique (`public/`) : formulaire d'inscription par créneau,
-  capacité en temps réel (rafraîchie toutes les 4 secondes).
-- **Backend** en Express (`server.js`) qui applique la limite de 20 côté
-  serveur, de façon fiable même en cas d'inscriptions simultanées (testé
-  avec 30 inscriptions envoyées en même temps : exactement 20 acceptées,
-  10 refusées proprement).
-- **Stockage** : deux modes, choisis automatiquement selon l'endroit où
-  l'app tourne (voir plus bas — c'est le point important pour Vercel).
-- **Mode pilotage** : bouton en bas de page protégé par un code
-  (variable d'environnement `PILOTAGE_CODE`, `PILOTAGE` par défaut) donnant
-  accès à la liste complète, à la suppression d'une inscription et à
-  l'export CSV. Le code est vérifié **côté serveur** à chaque appel — ce
-  n'est pas juste un masque visuel.
+**Public (`/`)**
+- Formulaire : prénom, nom, e-mail, entreprise/équipe, message optionnel
+- Compteur de places restantes mis à jour toutes les 5 s, passage automatique en « complet »
+- Inscriptions simultanées sans limite de connexions, et **jamais plus de 20 inscrits** (voir ci-dessous)
+- Un e-mail ne peut s'inscrire qu'une fois
 
-## ⚠️ Sur Vercel, une base de données est obligatoire
+**Admin (`/admin`, protégé par mot de passe)**
+- Liste des inscrits, mise à jour toutes les 3 s (suivi en temps réel)
+- Détail de chaque inscrit (nom, e-mail, entreprise, message, date)
+- Suppression d'un inscrit (libère immédiatement une place)
+- Inscrits / places restantes / capacité
 
-Vercel ne fait pas tourner un serveur permanent comme un serveur classique :
-chaque requête démarre une petite fonction indépendante, sans disque
-partagé entre les utilisateurs. Un simple fichier `data/registrations.json`
-ne peut donc **pas** être partagé entre les inscriptions de plusieurs
-personnes sur Vercel — c'est exactement ce qui empêchait le plafond de 20
-de fonctionner correctement en production.
+## Comment ça marche sans base de données
 
-Ce projet a été modifié pour supporter un vrai stockage partagé : une base
-Redis (via l'intégration **Upstash** du Vercel Marketplace, gratuite pour ce
-volume d'usage). Tant que cette base n'est pas créée et reliée au projet,
-Vercel utilisera un stockage fichier qui ne sera pas fiable en production —
-il faut donc suivre les étapes ci-dessous **une seule fois**.
+Chaque place est un fichier `slots/001.json` … `slots/020.json`. Un fichier ne peut être créé que s'il n'existe pas déjà : deux personnes ne peuvent donc jamais prendre la même place, et le total ne peut pas dépasser `MAX_REGISTRATIONS`, même si 100 personnes s'inscrivent au même instant. Un fichier `emails/<hash>.json` empêche les doublons d'e-mail. Les fichiers sont privés (jamais accessibles par URL publique), seule l'application les lit.
 
-### Étapes à suivre dans le dashboard Vercel (5 minutes, une seule fois)
+## Configuration
 
-1. Ouvrir le projet `formations-leaders` sur [vercel.com](https://vercel.com).
-2. Dans le menu du haut, cliquer sur l'onglet **Storage**.
-3. Cliquer sur **Create Database** (ou **Browse Marketplace** selon
-   l'interface), puis choisir **Upstash** → **Redis** (souvent proposé sous
-   le nom "Upstash for Redis").
-4. Choisir le plan gratuit ("Free" / "Hobby"), donner un nom (ex.
-   `formations-leaders-db`), garder la région par défaut, valider la
-   création.
-5. Sur l'écran suivant, Vercel demande à quel(s) projet(s) relier cette
-   base : cocher **formations-leaders**, puis confirmer ("Connect" /
-   "Connect Project"). Cela ajoute automatiquement les variables
-   d'environnement nécessaires (`KV_REST_API_URL`, `KV_REST_API_TOKEN` ou
-   `UPSTASH_REDIS_REST_URL`/`TOKEN` selon la version de l'intégration) —
-   il n'y a rien à recopier à la main.
-6. Retourner dans l'onglet **Deployments** du projet, ouvrir le dernier
-   déploiement et cliquer sur **Redeploy** (bouton "..." → "Redeploy") pour
-   que le nouveau déploiement parte avec les variables de la base
-   fraîchement reliée.
-7. Une fois le redéploiement terminé, ouvrir
-   `https://formations-leaders.vercel.app/api/health` : la réponse doit
-   afficher `"storage":"kv"`. Si elle affiche `"storage":"file"`, la base
-   n'est pas encore reliée ou le redéploiement n'a pas pris en compte les
-   nouvelles variables — recommencer l'étape 6.
+Copier `.env.example` en `.env.local` :
 
-### Vérifier que ça bloque bien à 20
-
-Une fois `"storage":"kv"` confirmé : faire inscrire (ou simuler) plusieurs
-personnes sur le même créneau depuis des appareils/onglets différents. Au
-21ᵉ inscrit sur un même créneau, le formulaire doit refuser avec le message
-"Ce créneau est complet."
-
-## Lancer en local (sans base de données)
+| Variable | Rôle |
+|---|---|
+| `ADMIN_PASSWORD` | Mot de passe de `/admin` |
+| `MAX_REGISTRATIONS` | Nombre max d'inscrits (défaut 20) |
+| `BLOB_READ_WRITE_TOKEN` | Ajoutée automatiquement par Vercel avec un Blob store. En local, laisser vide : les données vont dans `.data/` |
+| `NEXT_PUBLIC_EVENT_TITLE` / `NEXT_PUBLIC_EVENT_DATE` | Texte affiché sous le titre (optionnel) |
 
 ```bash
 npm install
-npm start
+npm run dev
 ```
 
-Puis ouvrir http://localhost:3000
+## Déploiement : GitHub + Vercel
 
-Sans les variables `KV_REST_API_URL`/`KV_REST_API_TOKEN` (ou
-`UPSTASH_REDIS_REST_URL`/`TOKEN`) définies, l'app bascule automatiquement
-sur un fichier local `data/registrations.json` — pratique pour tester,
-mais **à ne pas utiliser tel quel en production sur Vercel**.
+1. **GitHub** : créer un dépôt vide, puis
+   ```bash
+   git remote add origin https://github.com/<compte>/vibecode-inscription.git
+   git push -u origin main
+   ```
+2. **Vercel** : *Add New → Project*, importer le dépôt (ne pas encore déployer, ou redéployer après l'étape 3).
+3. **Stockage** : dans le projet Vercel, onglet *Storage* → *Create* → **Blob**, en mode **Private**, puis le connecter au projet. `BLOB_READ_WRITE_TOKEN` est ajoutée automatiquement.
+4. **Variables d'environnement** : ajouter `ADMIN_PASSWORD` (et éventuellement `MAX_REGISTRATIONS`, `NEXT_PUBLIC_EVENT_TITLE`, `NEXT_PUBLIC_EVENT_DATE`).
+5. *Deploy*. Les données restent en place entre les déploiements.
 
-Pour changer le code pilotage :
-
-```bash
-PILOTAGE_CODE="monsupercode" npm start
-```
-
-## Déployer ailleurs qu'sur Vercel
-
-Ce projet reste un serveur Node/Express classique (`server.js` exporte
-l'app et l'écoute réseau ne démarre que si le fichier est exécuté
-directement) : il se déploie donc tel quel sur toute plateforme qui exécute
-du Node en continu (Render, Railway, Fly.io, un VPS...). Dans ce cas, soit
-on relie les mêmes variables Redis (Upstash a une offre indépendante de
-Vercel), soit on active un disque persistant pour `data/` si on préfère
-garder le stockage fichier.
-
-## Structure
-
-```
-.
-├── package.json
-├── vercel.json        # config de déploiement Vercel (routes tout vers server.js)
-├── server.js           # API + service des fichiers statiques (Express)
-├── store.js            # couche de stockage : Redis (Upstash/Vercel KV) ou fichier local
-├── data/                # créé automatiquement en mode fichier (local uniquement)
-└── public/
-    ├── index.html      # page d'inscription
-    └── app.js           # logique front (fetch + polling)
-```
+Modifier la capacité : changer `MAX_REGISTRATIONS` puis redéployer.

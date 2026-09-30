@@ -1,16 +1,23 @@
 {
-  "name": "livepoint-inscription-formation",
+  "name": "vibecode-inscription",
   "version": "1.0.0",
-  "description": "Plateforme d'inscription aux créneaux de formation à l'offre du Lab (15 & 16 octobre) - Agentic Livepoint",
-  "main": "server.js",
+  "private": true,
   "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=18"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@upstash/redis": "^1.39.0",
-    "express": "^4.19.2"
+    "@vercel/blob": "^2.8.0",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
   }
 }
