@@ -9,16 +9,67 @@ places, contrôlé côté serveur.
 
 - **Frontend** statique (`public/`) : formulaire d'inscription par créneau,
   capacité en temps réel (rafraîchie toutes les 4 secondes).
-- **Backend** minimal en Express (`server.js`) qui stocke les inscriptions
-  dans `data/registrations.json` et applique la limite de 20 côté serveur
-  (donc fiable même en cas d'inscriptions simultanées).
+- **Backend** en Express (`server.js`) qui applique la limite de 20 côté
+  serveur, de façon fiable même en cas d'inscriptions simultanées (testé
+  avec 30 inscriptions envoyées en même temps : exactement 20 acceptées,
+  10 refusées proprement).
+- **Stockage** : deux modes, choisis automatiquement selon l'endroit où
+  l'app tourne (voir plus bas — c'est le point important pour Vercel).
 - **Mode pilotage** : bouton en bas de page protégé par un code
   (variable d'environnement `PILOTAGE_CODE`, `PILOTAGE` par défaut) donnant
   accès à la liste complète, à la suppression d'une inscription et à
   l'export CSV. Le code est vérifié **côté serveur** à chaque appel — ce
   n'est pas juste un masque visuel.
 
-## Lancer en local
+## ⚠️ Sur Vercel, une base de données est obligatoire
+
+Vercel ne fait pas tourner un serveur permanent comme un serveur classique :
+chaque requête démarre une petite fonction indépendante, sans disque
+partagé entre les utilisateurs. Un simple fichier `data/registrations.json`
+ne peut donc **pas** être partagé entre les inscriptions de plusieurs
+personnes sur Vercel — c'est exactement ce qui empêchait le plafond de 20
+de fonctionner correctement en production.
+
+Ce projet a été modifié pour supporter un vrai stockage partagé : une base
+Redis (via l'intégration **Upstash** du Vercel Marketplace, gratuite pour ce
+volume d'usage). Tant que cette base n'est pas créée et reliée au projet,
+Vercel utilisera un stockage fichier qui ne sera pas fiable en production —
+il faut donc suivre les étapes ci-dessous **une seule fois**.
+
+### Étapes à suivre dans le dashboard Vercel (5 minutes, une seule fois)
+
+1. Ouvrir le projet `formations-leaders` sur [vercel.com](https://vercel.com).
+2. Dans le menu du haut, cliquer sur l'onglet **Storage**.
+3. Cliquer sur **Create Database** (ou **Browse Marketplace** selon
+   l'interface), puis choisir **Upstash** → **Redis** (souvent proposé sous
+   le nom "Upstash for Redis").
+4. Choisir le plan gratuit ("Free" / "Hobby"), donner un nom (ex.
+   `formations-leaders-db`), garder la région par défaut, valider la
+   création.
+5. Sur l'écran suivant, Vercel demande à quel(s) projet(s) relier cette
+   base : cocher **formations-leaders**, puis confirmer ("Connect" /
+   "Connect Project"). Cela ajoute automatiquement les variables
+   d'environnement nécessaires (`KV_REST_API_URL`, `KV_REST_API_TOKEN` ou
+   `UPSTASH_REDIS_REST_URL`/`TOKEN` selon la version de l'intégration) —
+   il n'y a rien à recopier à la main.
+6. Retourner dans l'onglet **Deployments** du projet, ouvrir le dernier
+   déploiement et cliquer sur **Redeploy** (bouton "..." → "Redeploy") pour
+   que le nouveau déploiement parte avec les variables de la base
+   fraîchement reliée.
+7. Une fois le redéploiement terminé, ouvrir
+   `https://formations-leaders.vercel.app/api/health` : la réponse doit
+   afficher `"storage":"kv"`. Si elle affiche `"storage":"file"`, la base
+   n'est pas encore reliée ou le redéploiement n'a pas pris en compte les
+   nouvelles variables — recommencer l'étape 6.
+
+### Vérifier que ça bloque bien à 20
+
+Une fois `"storage":"kv"` confirmé : faire inscrire (ou simuler) plusieurs
+personnes sur le même créneau depuis des appareils/onglets différents. Au
+21ᵉ inscrit sur un même créneau, le formulaire doit refuser avec le message
+"Ce créneau est complet."
+
+## Lancer en local (sans base de données)
 
 ```bash
 npm install
@@ -27,52 +78,37 @@ npm start
 
 Puis ouvrir http://localhost:3000
 
+Sans les variables `KV_REST_API_URL`/`KV_REST_API_TOKEN` (ou
+`UPSTASH_REDIS_REST_URL`/`TOKEN`) définies, l'app bascule automatiquement
+sur un fichier local `data/registrations.json` — pratique pour tester,
+mais **à ne pas utiliser tel quel en production sur Vercel**.
+
 Pour changer le code pilotage :
 
 ```bash
 PILOTAGE_CODE="monsupercode" npm start
 ```
 
-## Déployer
+## Déployer ailleurs qu'sur Vercel
 
-Ce projet est un simple serveur Node/Express : il se déploie tel quel sur
-n'importe quelle plateforme qui exécute du Node (Render, Railway, Fly.io,
-un VPS classique...).
-
-1. Pousser ce dossier sur un repo GitHub.
-2. Connecter le repo à la plateforme choisie (build command : `npm install`,
-   start command : `npm start`).
-3. Définir la variable d'environnement `PILOTAGE_CODE` dans les réglages du
-   service.
-4. Vérifier que le disque contenant `data/registrations.json` est
-   **persistant** (voir ci-dessous).
-
-### ⚠️ Important : persistance des données
-
-Le stockage utilisé ici est un simple fichier JSON sur disque — volontairement
-simple pour rester lisible et facile à auditer. Certaines plateformes
-gratuites (Render free, par exemple) réinitialisent le système de fichiers à
-chaque redéploiement ou redémarrage du service : les inscriptions seraient
-alors perdues.
-
-- Sur Render/Railway : activer un **disque persistant** (Persistent Disk /
-  Volume) monté sur le dossier `data/`.
-- Alternative plus robuste pour un usage réel à moyen terme : remplacer les
-  fonctions `readAll`/`writeAll` de `server.js` par un vrai stockage
-  (Postgres via Supabase/Neon, ou Turso/SQLite distant) — la surface de code
-  à changer est volontairement réduite à ces deux fonctions.
-
-Pour un événement ponctuel de deux jours avec ~80 inscriptions maximum, le
-fichier JSON est largement suffisant tant que le disque est persistant.
+Ce projet reste un serveur Node/Express classique (`server.js` exporte
+l'app et l'écoute réseau ne démarre que si le fichier est exécuté
+directement) : il se déploie donc tel quel sur toute plateforme qui exécute
+du Node en continu (Render, Railway, Fly.io, un VPS...). Dans ce cas, soit
+on relie les mêmes variables Redis (Upstash a une offre indépendante de
+Vercel), soit on active un disque persistant pour `data/` si on préfère
+garder le stockage fichier.
 
 ## Structure
 
 ```
 .
 ├── package.json
-├── server.js          # API + service des fichiers statiques
-├── data/              # créé automatiquement au premier lancement
+├── vercel.json        # config de déploiement Vercel (routes tout vers server.js)
+├── server.js           # API + service des fichiers statiques (Express)
+├── store.js            # couche de stockage : Redis (Upstash/Vercel KV) ou fichier local
+├── data/                # créé automatiquement en mode fichier (local uniquement)
 └── public/
     ├── index.html      # page d'inscription
-    └── app.js          # logique front (fetch + polling)
+    └── app.js           # logique front (fetch + polling)
 ```
