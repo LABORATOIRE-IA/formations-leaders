@@ -30,6 +30,7 @@ export default function Home() {
   const [target, setTarget] = useState<SlotDef | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const setMineBoth = (m: Mine | null) => {
     mineRef.current = m;
@@ -47,8 +48,12 @@ export default function Home() {
         headers["x-token"] = m.token;
       }
       const r = await fetch("/api/registrations", { cache: "no-store", headers });
-      if (!r.ok) return;
-      const d = await r.json();
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setApiError(`${d.error || "Service indisponible"}${d.detail ? ` — ${d.detail}` : ""}`);
+        return;
+      }
+      setApiError(null);
       setCapacity(d.capacity);
       setCounts(d.counts);
       if (m && d.mine === false) setMineBoth(null); // supprimée par l'admin
@@ -80,7 +85,7 @@ export default function Home() {
       });
       const d = await r.json();
       if (!r.ok) {
-        setError(d.error || "Une erreur est survenue.");
+        setError(`${d.error || "Une erreur est survenue."}${d.detail ? ` (${d.detail})` : ""}`);
         refresh();
       } else {
         setMineBoth({
@@ -130,6 +135,12 @@ export default function Home() {
         <br />
         Sessions de <b>45 minutes</b>, <b>{capacity} places</b> par créneau.
       </p>
+
+      {apiError && (
+        <div className="msg err" style={{ maxWidth: 820, margin: "28px auto 0", wordBreak: "break-word" }}>
+          {apiError}
+        </div>
+      )}
 
       <div className="days">
         {DAYS.map((day) => (
@@ -183,7 +194,6 @@ export default function Home() {
                   ) : (
                     <button
                       className="btn"
-                      disabled={!ready}
                       onClick={() => {
                         setError(null);
                         setTarget(s);

@@ -20,8 +20,12 @@ export async function GET(req: Request) {
     const body: Record<string, unknown> = { capacity: SLOT_CAPACITY, counts };
     if (slot && seat && token) body.mine = await verifyMine(slot, Number(seat), token);
     return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
-  } catch {
-    return NextResponse.json({ error: "Service indisponible" }, { status: 503 });
+  } catch (e) {
+    console.error("GET /api/registrations", e);
+    return NextResponse.json(
+      { error: "Stockage indisponible", detail: e instanceof Error ? e.message : String(e) },
+      { status: 503 }
+    );
   }
 }
 
@@ -58,8 +62,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Cet e-mail est déjà inscrit à un créneau." }, { status: 409 });
     }
     return NextResponse.json({ ok: true, slot: res.slot, seat: res.seat, token: res.token }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Erreur serveur, réessayez dans un instant." }, { status: 500 });
+  } catch (e) {
+    console.error("POST /api/registrations", e);
+    return NextResponse.json(
+      { error: "Erreur serveur, réessayez dans un instant.", detail: e instanceof Error ? e.message : String(e) },
+      { status: 500 }
+    );
   }
 }
 
