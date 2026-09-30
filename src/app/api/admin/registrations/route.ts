@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { MAX_REGISTRATIONS, listRegistrations } from "@/lib/store";
+import { SLOT_CAPACITY, listRegistrations } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,15 +10,10 @@ export async function GET() {
   try {
     const items = await listRegistrations();
     return NextResponse.json(
-      {
-        max: MAX_REGISTRATIONS,
-        count: items.length,
-        remaining: Math.max(0, MAX_REGISTRATIONS - items.length),
-        items,
-      },
+      { capacity: SLOT_CAPACITY, items },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch {
-    return NextResponse.json({ error: "Base de données indisponible" }, { status: 503 });
+    return NextResponse.json({ error: "Stockage indisponible" }, { status: 503 });
   }
 }

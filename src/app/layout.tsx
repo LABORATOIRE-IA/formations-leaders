@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Inscription Vibecode — ailab.",
-  description: "Réservez votre place pour la session Vibecode.",
+  title: "Formation à l’offre du Lab — ailab.",
+  description: "Réservez votre créneau de formation à l’offre du Lab (15 & 16 octobre).",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

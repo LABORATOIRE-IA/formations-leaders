@@ -1,35 +1,36 @@
-# Inscription Vibecode
+# Formation à l'offre du Lab — inscription par créneaux
 
-Page d'inscription moderne (Next.js) avec espace administrateur et limite stricte du nombre d'inscrits. **Aucune base de données** : les inscriptions sont de petits fichiers JSON stockés dans Vercel Blob.
+Page d'inscription (Next.js) : jeudi 15 et vendredi 16 octobre, 2 créneaux par jour (14:00 → 14:45 et 14:45 → 15:30), 20 places par créneau. **Aucune base de données** : les inscriptions sont de petits fichiers JSON stockés dans Vercel Blob.
 
-## Fonctionnalités
+## Fonctionnement
 
 **Public (`/`)**
-- Formulaire : prénom, nom, e-mail, entreprise/équipe, message optionnel
-- Compteur de places restantes mis à jour toutes les 5 s, passage automatique en « complet »
-- Inscriptions simultanées sans limite de connexions, et **jamais plus de 20 inscrits** (voir ci-dessous)
-- Un e-mail ne peut s'inscrire qu'une fois
+- On clique sur un créneau, on renseigne prénom, nom, e-mail (entreprise optionnelle) : c'est inscrit.
+- Chaque créneau affiche ses places restantes et une jauge ; passage en « complet » automatique.
+- Une seule inscription par personne : une fois inscrit, les autres créneaux affichent « Déjà inscrit(e) à un autre créneau ». Le bouton « Annuler mon inscription » libère la place.
+- L'inscription est mémorisée dans le navigateur de la personne (sur le même appareil). Si l'admin la supprime, l'affichage revient à zéro tout seul.
+- Inscriptions simultanées sans limite de connexions, et **jamais plus de 20 inscrits par créneau**.
 
-**Admin (`/admin`, protégé par mot de passe)**
-- Liste des inscrits, mise à jour toutes les 3 s (suivi en temps réel)
-- Détail de chaque inscrit (nom, e-mail, entreprise, message, date)
-- Suppression d'un inscrit (libère immédiatement une place)
-- Inscrits / places restantes / capacité
+**Mode pilotage (`/admin`, mot de passe)**
+- Inscrits par créneau, avec nom, e-mail, entreprise, date d'inscription
+- Places restantes par créneau et au total, mises à jour toutes les 3 s
+- Suppression d'un inscrit (libère immédiatement la place)
 
-## Comment ça marche sans base de données
+## Comment ça tient sans base de données
 
-Chaque place est un fichier `slots/001.json` … `slots/020.json`. Un fichier ne peut être créé que s'il n'existe pas déjà : deux personnes ne peuvent donc jamais prendre la même place, et le total ne peut pas dépasser `MAX_REGISTRATIONS`, même si 100 personnes s'inscrivent au même instant. Un fichier `emails/<hash>.json` empêche les doublons d'e-mail. Les fichiers sont privés (jamais accessibles par URL publique), seule l'application les lit.
+Chaque place est un fichier `seats/<créneau>/001.json` … `020.json`. Un fichier ne peut être créé que s'il n'existe pas déjà : deux personnes ne peuvent jamais prendre la même place, même si 100 personnes cliquent en même temps. Un fichier `emails/<hash>.json` limite chaque personne à une inscription. Les fichiers sont privés (aucune URL publique).
+
+## Modifier les jours / horaires
+
+Éditer `src/lib/slots.ts` (jours, dates, horaires, identifiants de créneaux).
 
 ## Configuration
 
-Copier `.env.example` en `.env.local` :
-
 | Variable | Rôle |
 |---|---|
-| `ADMIN_PASSWORD` | Mot de passe de `/admin` |
-| `MAX_REGISTRATIONS` | Nombre max d'inscrits (défaut 20) |
-| `BLOB_READ_WRITE_TOKEN` | Ajoutée automatiquement par Vercel avec un Blob store. En local, laisser vide : les données vont dans `.data/` |
-| `NEXT_PUBLIC_EVENT_TITLE` / `NEXT_PUBLIC_EVENT_DATE` | Texte affiché sous le titre (optionnel) |
+| `ADMIN_PASSWORD` | Mot de passe du mode pilotage |
+| `SLOT_CAPACITY` | Places par créneau (défaut 20) |
+| `BLOB_READ_WRITE_TOKEN` | Ajoutée automatiquement par Vercel avec un Blob store. En local, laisser vide : données dans `.data/` |
 
 ```bash
 npm install
@@ -38,14 +39,8 @@ npm run dev
 
 ## Déploiement : GitHub + Vercel
 
-1. **GitHub** : créer un dépôt vide, puis
-   ```bash
-   git remote add origin https://github.com/<compte>/vibecode-inscription.git
-   git push -u origin main
-   ```
-2. **Vercel** : *Add New → Project*, importer le dépôt (ne pas encore déployer, ou redéployer après l'étape 3).
-3. **Stockage** : dans le projet Vercel, onglet *Storage* → *Create* → **Blob**, en mode **Private**, puis le connecter au projet. `BLOB_READ_WRITE_TOKEN` est ajoutée automatiquement.
-4. **Variables d'environnement** : ajouter `ADMIN_PASSWORD` (et éventuellement `MAX_REGISTRATIONS`, `NEXT_PUBLIC_EVENT_TITLE`, `NEXT_PUBLIC_EVENT_DATE`).
-5. *Deploy*. Les données restent en place entre les déploiements.
-
-Modifier la capacité : changer `MAX_REGISTRATIONS` puis redéployer.
+1. Pousser le code sur GitHub.
+2. Vercel : importer le dépôt, **Framework Preset = Next.js**.
+3. Storage → créer un **Blob** store en mode **Private** et le connecter au projet.
+4. Variables d'environnement : `ADMIN_PASSWORD` (et éventuellement `SLOT_CAPACITY`).
+5. Déployer (ou *Redeploy* après l'étape 3).
